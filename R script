@@ -1,0 +1,16 @@
+###Script para PGLS aditivo usando los clados donde BAMM observa cambios en tasas de evolucion
+library(BAMMtools)
+library(ape)
+library(coda)
+library(nlme)
+library(scales)
+library(phytools)
+library(phangorn)
+
+#arboles
+arbol <- read.tree('~/Documents/BAMM_Diversification/Sp_rates/arbol_speciation.tre')
+arbolU <- read.tree('~/Documents/Datos_colibries/Arboles/arbolU.tre')
+#arboles de machos y hembras
+arbol_M <- read.tree('~/Documents/Datos_colibries/Arboles/arbol_machos.tre')
+arbol_F <- read.tree('~/Documents/Datos_colibries/Arboles/arbol_hembras.tre')
+
