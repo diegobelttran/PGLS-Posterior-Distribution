@@ -1,4 +1,4 @@
-###Script para PGLS aditivo usando los clados donde BAMM observa cambios en tasas de evolucion
+### Required packages
 library(BAMMtools)
 library(ape)
 library(coda)
@@ -7,141 +7,111 @@ library(scales)
 library(phytools)
 library(phangorn)
 
-#arboles
-arbol <- read.tree('~/Documents/BAMM_Diversification/Sp_rates/arbol_speciation.tre')
-arbolU <- read.tree('~/Documents/Datos_colibries/Arboles/arbolU.tre')
-#arboles de machos y hembras
-arbol_M <- read.tree('~/Documents/Datos_colibries/Arboles/arbol_machos.tre')
-arbol_F <- read.tree('~/Documents/Datos_colibries/Arboles/arbol_hembras.tre')
+#phylogenetic trees, need to be dated and ultrametric
+#I had the original tree and variations of it, because my male/female representation varied, I have a 'different' phylogeny
+#for males and females, and I also have a 'unisex' phylogeny with those species with trait data for both sexes
+tree <- read.tree('yourtree.tre')
+#male, female and unisex trees
+tree_M <- read.tree('yourtreeM.tre.tre')
+tree_F <- read.tree('yourtreeF.tre.tre')
+treeU <- read.tree('yourtreeU.tre.tre')
 
-copia <- arbol
+#I made a copy of the tree just so I wouldn't mess with the original
+copy <- tree
 
-#Tabla de variables por especie y parche de ambos sexos
-machos_prom <- read.table('~/Documents/Datos_colibries/BaseDeDatos/var_prom_sp_parche_machos.txt',h=T,sep='\t')
-hembras_prom <- read.table('~/Documents/Datos_colibries/BaseDeDatos/var_prom_sp_parche_hembras.txt',h=T,sep='\t')
+#trait data for males and females of each species
+males_avg <- read.table('male_trait_data.txt',h=T,sep='\t')
+females_avg <- read.table('female_trait_data.txt',h=T,sep='\t')
 
-#tasas de especiacion de todas las especies en la filogenia completa
-sp_r <- read.table('~/Documents/Datos_colibries/Speciation_rates/sp_rates_all.txt',h=T,sep='\t')
+#speciation rates obtained from BAMM, for all species in the phylogeny
+sp_r <- read.table('sp_rates_all.txt',h=T,sep='\t')
 
-#tablas de tasas de evolucion de brillo y cromaticidad BAMM
-sex_bri_mBeta <- read.table('~/Documents/Datos_colibries/Brightness_Beta/sex_bri_m_rates.txt',h=T,sep='\t')
-rownames(sex_bri_mBeta) <- sex_bri_mBeta$Species
-sex_bri_mBeta$Lambda <- sp_m$Lambda
-nat_bri_mBeta <- read.table('~/Documents/Datos_colibries/Brightness_Beta/nat_bri_m_rates.txt',h=T,sep='\t')
-rownames(nat_bri_mBeta) <- nat_bri_mBeta$Species
-nat_bri_mBeta$Lambda <- sp_m$Lambda
-sex_cromat_mBeta <- read.table('~/Documents/Datos_colibries/Chromaticity_Beta/sex_cromat_m_rates.txt',h=T,sep='\t')
-rownames(sex_cromat_mBeta) <- sex_cromat_mBeta$Species
-sex_cromat_mBeta$Lambda <- sp_m$Lambda
-nat_cromat_mBeta <- read.table('~/Documents/Datos_colibries/Chromaticity_Beta/nat_cromat_m_rates.txt',h=T,sep='\t')
-rownames(nat_cromat_mBeta) <- nat_cromat_mBeta$Species
-nat_cromat_mBeta$Lambda <- sp_m$Lambda
-
-sex_bri_fBeta <- read.table('~/Documents/Datos_colibries/Brightness_Beta/sex_bri_f_rates.txt',h=T,sep='\t')
-rownames(sex_bri_fBeta) <- sex_bri_fBeta$Species
-sex_bri_fBeta$Lambda <- sp_f$Lambda
-nat_bri_fBeta <- read.table('~/Documents/Datos_colibries/Brightness_Beta/nat_bri_f_rates.txt',h=T,sep='\t')
-rownames(nat_bri_fBeta) <- nat_bri_fBeta$Species
-nat_bri_fBeta$Lambda <- sp_f$Lambda
-sex_cromat_fBeta <- read.table('~/Documents/Datos_colibries/Chromaticity_Beta/sex_cromat_f_rates.txt',h=T,sep='\t')
-rownames(sex_cromat_fBeta) <- sex_cromat_fBeta$Species
-sex_cromat_fBeta$Lambda <- sp_f$Lambda
-nat_cromat_fBeta <- read.table('~/Documents/Datos_colibries/Chromaticity_Beta/nat_cromat_f_rates.txt',h=T,sep='\t')
-rownames(nat_cromat_fBeta) <- nat_cromat_fBeta$Species
-nat_cromat_fBeta$Lambda <- sp_f$Lambda
-
-#filtro las tasas de especiacion con las especies que tienen datos de cada sexo
-sp_m <- sp_r[-which(is.na(match(sp_r$Species,sex_bri_mBeta$Species))),]
+#trait evolution rates per species obtained from BAMM for males
+trait_mBeta <- read.table('trait_m_rates.txt',h=T,sep='\t')
+#add species names as row names
+rownames(trait_mBeta) <- trait_mBeta$Species
+#filter out sp rates of species without trait data for males
+sp_m <- sp_r[-which(is.na(match(sp_r$Species,trait_mBeta$Species))),]
 rownames(sp_m) <- sp_m$Species
-sp_f <- sp_r[-which(is.na(match(sp_r$Species,sex_bri_fBeta$Species))),]
+#add sp rates to the trait evolution rates table
+trait_mBeta$Lambda <- sp_m$Lambda
+
+
+#same process with females
+trait_fBeta <- read.table('trait_fBeta_rates.txt',h=T,sep='\t')
+rownames(sex_bri_fBeta) <- sex_bri_fBeta$Species
+sp_f <- sp_r[-which(is.na(match(sp_r$Species,trait_fBeta$Species))),]
 rownames(sp_f) <- sp_f$Species
-
-####tablas de tasa de evolucion de las variables de color de ambos sexos
-#filtro las tablas de tasa de evolucion con las especies en comun de machos y hembras
-sex_bri_mBeta <- sex_bri_mBeta[-which(is.na(match(sex_bri_mBeta$Species,sp_f$Species))),]
-sex_bri_fBeta <- sex_bri_fBeta[-which(is.na(match(sex_bri_fBeta$Species,sp_m$Species))),]
-sex_bri <- data.frame(Species=sex_bri_mBeta$Species,Lambda=sex_bri_mBeta$Lambda,BetaM=sex_bri_mBeta$Beta,BetaF=sex_bri_fBeta$Beta)
-rownames(sex_bri) <- sex_bri$Species
-
-nat_bri_mBeta <- nat_bri_mBeta[-which(is.na(match(nat_bri_mBeta$Species,sp_f$Species))),]
-nat_bri_fBeta <- nat_bri_fBeta[-which(is.na(match(nat_bri_fBeta$Species,sp_m$Species))),]
-nat_bri <- data.frame(Species=nat_bri_mBeta$Species,Lambda=nat_bri_mBeta$Lambda,BetaM=nat_bri_mBeta$Beta,BetaF=nat_bri_fBeta$Beta)
-rownames(nat_bri) <- nat_bri$Species
-
-sex_cromat_mBeta <- sex_cromat_mBeta[-which(is.na(match(sex_cromat_mBeta$Species,sp_f$Species))),]
-sex_cromat_fBeta <- sex_cromat_fBeta[-which(is.na(match(sex_cromat_fBeta$Species,sp_m$Species))),]
-sex_cromat <- data.frame(Species=sex_cromat_mBeta$Species,Lambda=sex_cromat_mBeta$Lambda,BetaM=sex_cromat_mBeta$Beta,BetaF=sex_cromat_fBeta$Beta)
-rownames(sex_cromat) <- sex_cromat$Species
-
-nat_cromat_mBeta <- nat_cromat_mBeta[-which(is.na(match(nat_cromat_mBeta$Species,sp_f$Species))),]
-nat_cromat_fBeta <- nat_cromat_fBeta[-which(is.na(match(nat_cromat_fBeta$Species,sp_m$Species))),]
-nat_cromat <- data.frame(Species=nat_cromat_mBeta$Species,Lambda=nat_cromat_mBeta$Lambda,BetaM=nat_cromat_mBeta$Beta,BetaF=nat_cromat_fBeta$Beta)
-rownames(nat_cromat) <- nat_cromat$Species
+trait_fBeta$Lambda <- sp_f$Lambda
 
 
 
-#Agrego columna de nombre cientifico para hacerla coincidir con las terminales del arbol
+####create a new trait evolution rates table with only species with data for both sexes
+#here I match the names of the species in the trait evolution rate table with the names in the sp rate table
+trait_mBeta <- trait_mBeta[-which(is.na(match(trait_mBeta$Species,sp_f$Species))),]
+trait_fBeta <- trait_fBeta[-which(is.na(match(trait_fBeta$Species,sp_m$Species))),]
+#since the male and female tables were in the same order I can simply bind them togeher in a new dataframe
+trait <- data.frame(Species=trait_mBeta$Species,Lambda=trait_mBeta$Lambda,BetaM=trait_mBeta$Beta,BetaF=trait_fBeta$Beta)
+#add rownames
+rownames(trait) <- trait$Species
+
+
+#read a taxonomy table, where I have all the scientific names of all species and the subclade they belong to
 tax <- read.table('~/Documents/Tax.txt',h=T,sep="\t")
-tax$Nombre_cientifico <- gsub(pattern=' ',replacement='_',x=tax$Nombre_cientifico)
+#create subsets with each subclade
 brilliants <- tax[which(tax$Clado == 'Brilliants'),]
-bees <- tax[which(tax$Clado == 'Bees'),]
-topazes <- tax[which(tax$Clado == 'Topazes'),]
-hermits <- tax[which(tax$Clado == 'Hermits'),]
-emeralds <- tax[which(tax$Clado == 'Emeralds'),]
-gems <- tax[which(tax$Clado == 'Mtn_Gems'),]
-coquettes <- tax[which(tax$Clado == 'Coquettes'),]
-mangoes <- tax[which(tax$Clado == 'Mangoes'),]
+bees <- tax[which(tax$Clade == 'Bees'),]
+topazes <- tax[which(tax$Clade == 'Topazes'),]
+hermits <- tax[which(tax$Clade == 'Hermits'),]
+emeralds <- tax[which(tax$Clade == 'Emeralds'),]
+gems <- tax[which(tax$Clade == 'Mtn_Gems'),]
+coquettes <- tax[which(tax$Clade == 'Coquettes'),]
+mangoes <- tax[which(tax$Clade == 'Mangoes'),]
 
+#use the taxonomy table to add the scientific name to each species in the trait data
+males_avg$Scientific_name <- tax[match(males_avg$Species,tax$ID_taxonomy),'Scientific_name']
+females_avg$Scientific_name <- tax[match(females_avg$Species,tax$ID_taxonomy),'Scientific_name']
 
-machos_prom$Nombre_cientifico <- tax[match(machos_prom$Species,tax$ID_taxonomia),'Nombre_cientifico']
-machos_prom$Nombre_cientifico <- gsub(pattern=' ',replacement='_',x=machos_prom$Nombre_cientifico)
-hembras_prom$Nombre_cientifico <- tax[match(hembras_prom$Species,tax$ID_taxonomia),'Nombre_cientifico']
-hembras_prom$Nombre_cientifico <- gsub(pattern=' ',replacement='_',x=hembras_prom$Nombre_cientifico)
-
-
-copia2 <- makeNodeLabel(copia, method ='number', prefix='')
+#my tree doesn't have node labels, so I create a new version of the phylogeny with node labels
+copy2 <- makeNodeLabel(copy, method ='number', prefix='')
 copia2$node.label <- 294:585
-#motilar arbol para machos
-cuales <- match(copia2$tip.label,unique(machos_prom$Nombre_cientifico))
-drops <- which(is.na(cuales) == T)
-copia_M <- drop.tip(copia2, drops)
+#prune those species without trait data from the 'male' tree
+what <- match(copy2$tip.label,unique(males_avg$Scientific_name))
+drops <- which(is.na(what) == T)
+copy_M <- drop.tip(copy2, drops)
 
-#motilar arbol para hembras
-cuales <- match(copia2$tip.label,unique(hembras_prom$Nombre_cientifico))
-drops <- which(is.na(cuales) == T)
-copia_F <- drop.tip(copia2, drops)
+#same process for females
+what <- match(copy2$tip.label,unique(females_avg$Scientific_name))
+drops <- which(is.na(what) == T)
+copy_F <- drop.tip(copy2, drops)
 
-#motilar arbol unisex
-cuales <- which(is.na(match(copia2$tip.label,sex_bri$Species))==T)
-copia_U <- drop.tip(copia2,cuales)
+#now for the unisex tree
+what <- which(is.na(match(copy2$tip.label,trait$Species))==T)
+copy_U <- drop.tip(copy2,what)
 
-#numero de los nodos de los 9 subclados
-nodos <- c(296,299,329,356,401,446,449,463,490)
+#number of nodes of the 9 subclades in the hummingbird family
+nodes <- c(296,299,329,356,401,446,449,463,490)
 
-#tasas de especiacion
-sp_r <- getEventData(arbol,'~/Documents/BAMM_Diversification/Sp_rates/event_sp_data.txt',burnin=0.1,type='diversification')
-#tasas de evolucion de cada variable
-sex_bri_m_r <- getEventData(arbol_M,'~/Documents/BAMM_Trait/Brightness/Males/Sex_patch/sex_bri_m_event_data.txt',burnin=0.1,type = "trait")
-nat_bri_m_r <- getEventData(arbol_M,'~/Documents/BAMM_Trait/Brightness/Males/Nat_patch/nat_bri_m_event_data.txt',burnin=0.1,type = "trait")
-sex_cromat_m_r <- getEventData(arbol_M,'~/Documents/BAMM_Trait/Chromaticity/Males/Sex_patch/sex_cromat_m_event_data.txt',burnin=0.1,type = "trait")
-nat_cromat_m_r <- getEventData(arbol_M,'~/Documents/BAMM_Trait/Chromaticity/Males/Nat_patch/nat_cromat_m_event_data.txt',burnin=0.1,type = "trait")
+#now we import the bammdata objects containing all the posterior distribution (event data), for sp rates and for trait evolution rates
+sp_pos <- getEventData(tree,'BAMM_event_sp_data.txt',burnin=0.1,type='diversification')
 
-sex_bri_f_r <- getEventData(arbol_F,'~/Documents/BAMM_Trait/Brightness/Females/Sex_patch/sex_bri_f_event_data20M-4k.txt',burnin=0.1,type = "trait")
-nat_bri_f_r <- getEventData(arbol_F,'~/Documents/BAMM_Trait/Brightness/Females/Nat_patch/nat_bri_f_event_data30M-6k.txt',burnin=0.1,type = "trait")
-sex_cromat_f_r <- getEventData(arbol_F,'~/Documents/BAMM_Trait/Chromaticity/Females/Sex_patch/sex_cromat_f_event_data.txt',burnin=0.1,type = "trait")
-nat_cromat_f_r <- getEventData(arbol_F,'~/Documents/BAMM_Trait/Chromaticity/Females/Nat_patch/nat_cromat_f_event_data.txt',burnin=0.1,type = "trait")
+#male trait posterior
+traitM_pos <- getEventData(tree_M,'BAMM_rait_event_data.txt',burnin=0.1,type = "trait")
+#female trait porsterior
+traitF_pos <- getEventData(tree_F,'BAMM_trait_event_data.txt',burnin=0.1,type = "trait")
 
 
-#tomo 100 muestras de la distribucion posterior de tasas de evolucion y de especiacion
-sp_r_sub1 <- sp_r[sample(1000)]
-sex_bri_m_r_sub1 <- sex_bri_m_r[sample(1000)]
-sex_bri_f_r_sub1 <- sex_bri_f_r[sample(1000)]
+#take 1000 samples from the posterior distributions
+sp_sub1 <- sp_pos[sample(1000)]
+traitM_sub1 <- traitM_pos[sample(1000)]
+traitF_sub1 <- traitF_pos[sample(1000)]
 
-#creo dataframe donde iran los coeficientes de correlacion de los PGLS de cada mutesra de la distribucion posterior
-coef_sex_bri <- data.frame(matrix(NA,ncol=7))
-names(coef_sex_bri) <- c('Intercept','Male_slope','Female_slope','p-value_Intercept','p-value_Male','p-value_Female','Number_clades')
+#create an empty dataframe where all the PGLS coefficients from each sample from the posterior will be stored
+#the last column gives the number of clades with different rates according to each BAMM configuration from our sample
+coef_trait <- data.frame(matrix(NA,ncol=7))
+names(coef_trait) <- c('Intercept','Male_slope','Female_slope','p-value_Intercept','p-value_Male','p-value_Female','Number_clades')
 
-#bucle para obtener coeficiencites de PGLS para 100 muestras de la distribucion posterior
+#here goes the loop to do PGLS by clade according to each sample from the posterior
 for (u in 1:1000){
 
 #creo un data frame con los nodos del arbol asignados por bamm en el arbol de machos y los del arbol original completo
